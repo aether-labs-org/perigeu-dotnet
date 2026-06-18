@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/webapi/webapi.csproj" />
+  </Folder>
+  <Project Path="perigeu-dotnet.csproj" />
+</Solution>
