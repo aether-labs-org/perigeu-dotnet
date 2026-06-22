@@ -2,5 +2,7 @@
   <Folder Name="/examples/">
     <Project Path="examples/webapi/webapi.csproj" />
   </Folder>
-  <Project Path="perigeu-dotnet.csproj" />
+  <Folder Name="/lib/">
+    <Project Path="lib/perigeu-dotnet.csproj" />
+  </Folder>
 </Solution>

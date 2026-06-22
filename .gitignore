@@ -28,6 +28,9 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 Folder.DotSettings.user
+appsettings.json
+build.sh
+perigeu.sln.DotSettings.user
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt

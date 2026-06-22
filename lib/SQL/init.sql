@@ -1,0 +1,14 @@
+--MARIADB DATABASE
+
+CREATE TABLE perigeuProcedures (
+   id BIGINT AUTO_INCREMENT PRIMARY KEY,
+   descricao LONGTEXT,
+   parameters LONGTEXT
+);
+
+CREATE TABLE perigeuLuaRoutes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  path LONGTEXT,
+  script LONGTEXT
+);
+
