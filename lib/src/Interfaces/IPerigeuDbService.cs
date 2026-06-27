@@ -10,6 +10,6 @@ public interface IPerigeuDbService
     public Table Execute(string procedureName, Table parameters);
     public List<LuaRoute> ListRoutes();
     public LuaRoute CreateRoute(string path,string script);
-    public LuaRoute UpdateRoute(string path,string script);
-    public bool DeleteRoute(int id);
+    public LuaRoute UpdateRoute(LuaRoute route);
+    public bool DeleteRoute(long id);
 }

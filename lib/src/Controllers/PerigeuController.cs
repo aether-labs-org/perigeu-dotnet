@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using perigeu_dotnet.Interfaces;
+using perigeu_dotnet.Models;
 
 namespace perigeu_dotnet.Controllers;
 
@@ -39,21 +40,24 @@ public class PerigeuController: Controller
     }
 
     [HttpPost]    
-    public async Task<IActionResult> CreateRouteAsync()
+    public async Task<IActionResult> UpsertRouteAsync([FromBody] LuaRoute route)
     {
-        throw new NotImplementedException();
-    }
+        if (route.Id == 0)
+        {
+            var createReturn =this._perigeuDbService.CreateRoute(route.Path, route.Script);
+            return Ok(createReturn);
+        }
 
-    [HttpPut]    
-    public async Task<IActionResult> UpdateRouteAsync()
-    {
-        throw new NotImplementedException();
+        var updateReturn = this._perigeuDbService.UpdateRoute(route);
+        return Ok(updateReturn);
     }
-
-    [HttpDelete]
-    public async Task<IActionResult> DeleteRouteAsync()
+    
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> DeleteRouteAsync([FromRoute] long id)
     {
-        throw new NotImplementedException();
+        if(this._perigeuDbService.DeleteRoute(id))
+            return Ok();
+        return NotFound();
     }
 
     

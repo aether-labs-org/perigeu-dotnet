@@ -13,15 +13,16 @@ public class PerigeuDbService : IPerigeuDbService
 
     public PerigeuDbService(IConfiguration configuration)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection") 
-            ?? throw new ArgumentNullException(nameof(configuration));
+        _connectionString = configuration.GetConnectionString("DefaultConnection")
+                            ?? throw new ArgumentNullException(nameof(configuration));
     }
+
     private IDbConnection GetConnection() => new MySqlConnection(_connectionString);
 
     public List<string> ListProcedures()
     {
         using var db = GetConnection();
-        
+
         string query = @"select descricao from perigeuProcedures order by descricao desc";
         string startWith = "";
         var procedures = db.Query<string>(query, new { Filter = $"{startWith}%" });
@@ -31,30 +32,47 @@ public class PerigeuDbService : IPerigeuDbService
     public List<LuaRoute> ListRoutes()
     {
         using var db = GetConnection();
-        string query = "SELECT Id, Path, Script FROM perigeuLuaRoutes";
-        var result = db.Query<LuaRoute>(query).ToList(); 
-        return result ;
+        string query = "SELECT Id, Path, Script FROM perigeuLuaRoutes order by path";
+        var result = db.Query<LuaRoute>(query).ToList();
+        return result;
     }
 
     public LuaRoute CreateRoute(string path, string script)
     {
-        throw new NotImplementedException();
+        using var db = GetConnection();
+        string query =
+            "INSERT INTO perigeuLuaRoutes (Path, Script) VALUES (@Path, @Script);SELECT * FROM perigeuLuaRoutes WHERE Id = LAST_INSERT_ID();";
+        var result = db.Query<LuaRoute>(query, new { Path = path, Script = script }).ToList();
+        return result.FirstOrDefault();
     }
 
-    public LuaRoute UpdateRoute(string path, string script)
+    public LuaRoute UpdateRoute(LuaRoute route)
     {
-        throw new NotImplementedException();
+        using var db = GetConnection();
+        string query = @"
+            UPDATE perigeuLuaRoutes 
+            SET Path = @Path, Script = @Script 
+            WHERE Id = @Id;
+            SELECT * FROM perigeuLuaRoutes WHERE Id = @Id;
+        ";
+        var updatedRoute = db.QueryFirstOrDefault<LuaRoute>(query, route);
+        return updatedRoute!;
     }
 
-    public bool DeleteRoute(int id)
+    public bool DeleteRoute(long id)
     {
-        throw new NotImplementedException();
+        using var db = GetConnection();
+        string query = @"delete from perigeuLuaRoutes WHERE id = @Id";
+        db.Query(query, new {Id = id});
+        return true;    
     }
 
     public Table Execute(string procedureName, Table parameters)
     {
         using var db = GetConnection();
-        
+        if(!this.ListProcedures().Contains(procedureName))
+            throw new Exception($"Procedure {procedureName} does not exist");
+
         var dbParams = new DynamicParameters();
         if (parameters != null)
         {
@@ -68,8 +86,8 @@ public class PerigeuDbService : IPerigeuDbService
 
         // Executa a Procedure no MariaDB
         var resultRows = db.Query<dynamic>(
-            procedureName, 
-            dbParams, 
+            procedureName,
+            dbParams,
             commandType: CommandType.StoredProcedure
         ).ToList();
 
