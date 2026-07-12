@@ -1,7 +1,7 @@
 using perigeu_dotnet.Controllers;
 using perigeu_dotnet.Interfaces;
 using perigeu_dotnet.Middlewares;
-using webapi.Services;
+using perigeu_dotnet.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,12 +24,12 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configuração do Pipeline HTTP
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsProduction())
 {
+//    app.UseHttpsRedirection();
     // builder.Services.AddOpenApi(); (Se for usar futuramente no .NET 10)
 }
 app.UseCors("DesenvolvimentoCORS");
-app.UseHttpsRedirection();
 app.UseMiddleware<PerigeuMiddleware>();
 app.MapControllers();
 

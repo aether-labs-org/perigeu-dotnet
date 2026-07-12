@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic.CompilerServices;
 using MoonSharp.Interpreter;
 using MoonSharp.Interpreter.Serialization.Json;
 using Newtonsoft.Json;
@@ -13,6 +14,7 @@ using Newtonsoft.Json.Linq;
 using perigeu_dotnet.Interfaces;
 using perigeu_dotnet.Models;
 using JsonSerializer = System.Text.Json.JsonSerializer;
+using Script = MoonSharp.Interpreter.Script;
 
 namespace perigeu_dotnet.Middlewares;
 
@@ -20,9 +22,10 @@ public sealed class PerigeuMiddleware: IMiddleware
 {
     private readonly IPerigeuDbService _perigeuDbService;
     private readonly IMemoryCache _cache;
-    private static List<LuaRoute> _luaRoutes = new();
+    private static List<Route> _Routes = new();
     private readonly ILogger<PerigeuMiddleware> _logger;
     private readonly HttpClient _client;
+    private static List<perigeu_dotnet.Models.Script> _scripts;
 
     public PerigeuMiddleware(IPerigeuDbService perigeuDbService,IMemoryCache cache, ILogger<PerigeuMiddleware> logger,HttpClient client)
     {
@@ -35,9 +38,10 @@ public sealed class PerigeuMiddleware: IMiddleware
 
     public void LoadScripts()
     {
-        PerigeuMiddleware._luaRoutes = this._perigeuDbService.ListRoutes();
+        PerigeuMiddleware._Routes = this._perigeuDbService.ListRoutes();
     }
-
+    
+    
     public Table CacheGet(string key)
     {
         if (this._cache.TryGetValue(key, out string? result))
@@ -46,12 +50,10 @@ public sealed class PerigeuMiddleware: IMiddleware
         }
         return JsonTableConverter.JsonToTable("{}");
     }
-
     public void CacheSet(string key, Table table,int expiration)
     {
         this._cache.Set(key,table.TableToJson(),TimeSpan.FromSeconds(expiration));
     }
-    
     public void LuaLogInfo(string route, string message) => _logger.LogInformation("{Route}: {Message}", route,message);
     public void LuaLogWarning(string route,string message) => _logger.LogWarning("{Route}: {Message}", route,message);
     public void LuaLogError(string route,string message) => _logger.LogError("{Route}: {Message}", route,message);
@@ -80,6 +82,7 @@ public sealed class PerigeuMiddleware: IMiddleware
 
         return sb.ToString();
     }
+    
     public Table HttpGet(string url, Table query)
     {
         var urlCompleta = AppendJsonToUrl(url, query.TableToJson());
@@ -106,12 +109,11 @@ public sealed class PerigeuMiddleware: IMiddleware
         return JsonTableConverter.JsonToTable(JsonConvert.SerializeObject(response));
         
     }
-
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        if (context.Request.Path.ToString().StartsWith("/perigeu/api") && context.Request.Method == "POST")
+        if (context.Request.Path.ToString().StartsWith("/api"))
         {
-            string path =  context.Request.Path.ToString().Remove(0, 12);
+            string path =  context.Request.Path.ToString().Remove(0, 4);
             if (path == "/load")
             {
                 this.LoadScripts();
@@ -127,48 +129,97 @@ public sealed class PerigeuMiddleware: IMiddleware
                     return;
                 }
             }
-            foreach (var route in _luaRoutes)
+            foreach (var route in _Routes)
             {
-                if (route.Path == path)
+                if (route.Path == path & route.Method == context.Request.Method)
                 {
                     UserData.RegisterAssembly(System.Reflection.Assembly.GetExecutingAssembly());
                     context.Response.ContentType = "application/json; charset=utf-8";
                     context.Response.ContentType = "text/json";
-                    context.Request.EnableBuffering(); // Permite ler o body sem desestabilizar a stream
-                    
-                    string bodyContent = await new StreamReader(context.Request.Body).ReadToEndAsync();
                     
                     Script script = new Script( CoreModules.Preset_Complete | CoreModules.LoadMethods );
-
                     script.Globals["Path"] = path;
-                    
-                    script.Globals["Execute"] = (Func<string,Table,Table>) _perigeuDbService.Execute;
-
-                    script.Globals["CacheGet"] = (Func<string,Table>) this.CacheGet;
-                    script.Globals["CacheSet"] = (Action<string,Table,int>) this.CacheSet;
-                    
-                    script.Globals["LogInfo"] = (Action<string,string>)this.LuaLogInfo;
-                    script.Globals["LogWarning"] = (Action<string,string>)this.LuaLogWarning;
-                    script.Globals["LogError"] = (Action<string,string>)this.LuaLogError;
-                    
-                    script.Globals["HttpGet"] = (Func<string,Table,Table>) this.HttpGet;
-                    script.Globals["HttpSend"] = (Func<string,string,Table,Table>) this.HttpSend;
-                    script.Globals["HttpDelete"] = (Func<string,Table,Table>) this.HttpDelete;
-                    
-                    if (!string.IsNullOrWhiteSpace(bodyContent))
+                    Table luaHeaderTable = new Table(script);
+                    foreach (var header in context.Request.Headers)
                     {
-                        Table requestTable = JsonTableConverter.JsonToTable(bodyContent);
-                        script.Globals["Body"] = requestTable; // Injeta a tabela globalmente
+                        luaHeaderTable[header.Key] = header.Value.ToString();
                     }
-                    else
+                    script.Globals["Headers"] = luaHeaderTable;
+                    
+                    if (context.Request.Method == "GET" || context.Request.Method == "DELETE")
                     {
-                        script.Globals["Body"] = new Table(script); // Envia tabela vazia se não houver body
+                        Table luaQueryTable = new Table(script);
+                        foreach (var param in context.Request.Query)
+                        {
+                            luaQueryTable[param.Key] = param.Value.ToString();
+                        }
+                        script.Globals["Query"] = luaQueryTable;
                     }
 
+                    if (context.Request.Method == "POST" || context.Request.Method == "PATCH" ||
+                        context.Request.Method == "PUT")
+                    {
+                        context.Request.EnableBuffering();
+                        string bodyContent = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                        if (!string.IsNullOrWhiteSpace(bodyContent))
+                        {
+                            Table requestTable = JsonTableConverter.JsonToTable(bodyContent);
+                            script.Globals["Body"] = requestTable;
+                        }
+                    }
+                    
+                    if (route.Utils is null)
+                        route.Utils = new List<Util>();
+                    
+                    var utils = route.Utils.Select(item => item.Chave).ToList();
+                    utils.Add("db");
+                    utils.Add("cache");
+                    utils.Add("log");
+                    utils.Add("http");
+
+
+                    if(utils.Contains("db"))                        
+                        script.Globals["Execute"] = (Func<string,Table,Table>) _perigeuDbService.Execute;
+
+                    if (utils.Contains("cache"))
+                    {
+                        script.Globals["CacheGet"] = (Func<string,Table>) this.CacheGet;
+                        script.Globals["CacheSet"] = (Action<string,Table,int>) this.CacheSet;
+                    }
+
+                    if (utils.Contains("log"))
+                    {
+                        script.Globals["LogInfo"] = (Action<string,string>)this.LuaLogInfo;
+                        script.Globals["LogWarning"] = (Action<string,string>)this.LuaLogWarning;
+                        script.Globals["LogError"] = (Action<string,string>)this.LuaLogError;
+                    }
+
+                    if (utils.Contains("http"))
+                    {
+                        script.Globals["HttpGet"] = (Func<string,Table,Table>) this.HttpGet;
+                        script.Globals["HttpSend"] = (Func<string,string,Table,Table>) this.HttpSend;
+                        script.Globals["HttpDelete"] = (Func<string,Table,Table>) this.HttpDelete;
+                    }
+
+                    if (utils.Contains("file"))
+                        throw new NotImplementedException();
+                    
+                    if (utils.Contains("mqtt"))
+                        throw new NotImplementedException();
+
+                    if (utils.Contains("signalr"))
+                        throw new NotImplementedException();
+
+                    foreach (var sc in route.Scripts ?? new List<Models.Script>())
+                    {
+                        script.DoString(sc.Body);
+                    }
                     try
                     {
                         DynValue res = script.DoString(route.Script);
-                        await context.Response.WriteAsync(res.Table.TableToJson(), Encoding.UTF8);
+                        var json = res.Table.TableToJson();
+                        if (json != null)
+                            await context.Response.WriteAsync(res.Table.TableToJson(), Encoding.UTF8);
                     }
                     catch (Exception e)
                     {

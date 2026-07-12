@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using MoonSharp.Interpreter;
 using perigeu_dotnet.Models;
+using Script = perigeu_dotnet.Models.Script;
 
 namespace perigeu_dotnet.Interfaces;
 
@@ -8,8 +9,15 @@ public interface IPerigeuDbService
 {
     public List<string> ListProcedures();
     public Table Execute(string procedureName, Table parameters);
-    public List<LuaRoute> ListRoutes();
-    public LuaRoute CreateRoute(string path,string script);
-    public LuaRoute UpdateRoute(LuaRoute route);
+    public List<Route> ListRoutes();
+    public Route GetRoute(long id);
+    public Route CreateRoute(Route route);
+    public Route UpdateRoute(Route route);
     public bool DeleteRoute(long id);
+    public List<Script> ListScripts();
+    public Script GetScript(long id);
+    public Script CreateScript(Script scriptDao);
+    public Script UpdateScript(Script scriptDao);
+    public bool DeleteScriptDao(long id);
+    public List<Util> ListUtils();
 }

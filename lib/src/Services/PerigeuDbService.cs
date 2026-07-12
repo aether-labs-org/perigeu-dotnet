@@ -1,11 +1,16 @@
 using System.Data;
 using MySqlConnector; // Driver específico para MariaDB/MySQL
 using Dapper;
+using Microsoft.Extensions.Configuration;
 using MoonSharp.Interpreter;
 using perigeu_dotnet.Interfaces;
 using perigeu_dotnet.Models;
+using perigeu_dotnet.Repositories;
 
-namespace webapi.Services;
+using Route = perigeu_dotnet.Models.Route;
+using Script = perigeu_dotnet.Models.Script;
+
+namespace perigeu_dotnet.Services;
 
 public class PerigeuDbService : IPerigeuDbService
 {
@@ -19,54 +24,82 @@ public class PerigeuDbService : IPerigeuDbService
 
     private IDbConnection GetConnection() => new MySqlConnection(_connectionString);
 
+    #region Procedures
     public List<string> ListProcedures()
     {
         using var db = GetConnection();
-
-        string query = @"select descricao from perigeuProcedures order by descricao desc";
-        string startWith = "";
-        var procedures = db.Query<string>(query, new { Filter = $"{startWith}%" });
-        return procedures.ToList();
-    }
-
-    public List<LuaRoute> ListRoutes()
-    {
-        using var db = GetConnection();
-        string query = "SELECT Id, Path, Script FROM perigeuLuaRoutes order by path";
-        var result = db.Query<LuaRoute>(query).ToList();
+        string query = "SELECT Descricao FROM perigeu_procedures order by descricao";
+        var result = db.Query<string>(query).ToList();
         return result;
     }
+    #endregion
 
-    public LuaRoute CreateRoute(string path, string script)
+    #region Routes
+    public List<Route> ListRoutes()
     {
-        using var db = GetConnection();
-        string query =
-            "INSERT INTO perigeuLuaRoutes (Path, Script) VALUES (@Path, @Script);SELECT * FROM perigeuLuaRoutes WHERE Id = LAST_INSERT_ID();";
-        var result = db.Query<LuaRoute>(query, new { Path = path, Script = script }).ToList();
-        return result.FirstOrDefault();
+        var repo = new RouteRepository(GetConnection());
+        return repo.List();
     }
 
-    public LuaRoute UpdateRoute(LuaRoute route)
+    public Route GetRoute(long id)
     {
-        using var db = GetConnection();
-        string query = @"
-            UPDATE perigeuLuaRoutes 
-            SET Path = @Path, Script = @Script 
-            WHERE Id = @Id;
-            SELECT * FROM perigeuLuaRoutes WHERE Id = @Id;
-        ";
-        var updatedRoute = db.QueryFirstOrDefault<LuaRoute>(query, route);
-        return updatedRoute!;
+        var repo = new RouteRepository(GetConnection());
+        return repo.GetById(id);
+    }
+
+    public Route CreateRoute(Route route)
+    {
+        var repo = new RouteRepository(GetConnection());
+        return repo.Add(route);
+    }
+
+    public Route UpdateRoute(Route route)
+    {
+        var repo = new RouteRepository(GetConnection());
+        return repo.Update(route);
     }
 
     public bool DeleteRoute(long id)
     {
-        using var db = GetConnection();
-        string query = @"delete from perigeuLuaRoutes WHERE id = @Id";
-        db.Query(query, new {Id = id});
-        return true;    
+        var repo = new RouteRepository(GetConnection());
+        return repo.Delete(id);
+    }
+    #endregion
+
+    #region Scripts
+
+    public List<Script> ListScripts()
+    {
+        throw new NotImplementedException();
     }
 
+    public Script GetScript(long id)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Script CreateScript(Script scriptDao)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Script UpdateScript(Script scriptDao)
+    {
+        throw new NotImplementedException();
+    }
+
+    public bool DeleteScriptDao(long id)
+    {
+        throw new NotImplementedException();
+    }
+    #endregion
+
+    #region Utils
+    public List<Util> ListUtils()
+    {
+        throw new NotImplementedException();
+    }
+    #endregion
     public Table Execute(string procedureName, Table parameters)
     {
         using var db = GetConnection();
@@ -92,7 +125,7 @@ public class PerigeuDbService : IPerigeuDbService
         ).ToList();
 
         // Monta a tabela de retorno do MoonSharp
-        Script scriptContext = new Script();
+        MoonSharp.Interpreter.Script scriptContext = new();
         Table luaResultTable = new Table(scriptContext);
 
         for (int i = 0; i < resultRows.Count; i++)
