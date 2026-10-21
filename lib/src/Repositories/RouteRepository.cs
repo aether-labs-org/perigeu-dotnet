@@ -16,6 +16,7 @@ public class RouteRepository
     
     public List<Route> List()
     {
+        _connection.Open();
         const string query = "SELECT id, method, path, script FROM perigeu_routes ORDER BY path, method";
         var result = this._connection.Query<Route>(query).ToList();
         return result;
@@ -23,6 +24,7 @@ public class RouteRepository
     
     public Route GetById(long id)
     {
+        _connection.Open();
         const string query = "SELECT id, method, path, script FROM perigeu_routes WHERE id = @Id";
         var route = this._connection.QueryFirstOrDefault<Route>(query, new { Id = id });
         if (route == null)
@@ -42,6 +44,7 @@ public class RouteRepository
     
     public Route Add(Route route)
     {
+        _connection.Open();
         const string query = """
             INSERT INTO perigeu_routes (path, script, method)
             VALUES (@Path, @Script, @Method)
@@ -58,6 +61,7 @@ public class RouteRepository
 
     public Route Update(Route route)
     {
+        _connection.Open();
         const string query = """
             UPDATE perigeu_routes
             SET path = @Path, script = @Script , method = @Method
@@ -69,6 +73,7 @@ public class RouteRepository
 
     public bool Delete(long id)
     {
+        _connection.Open();
         const string query = "DELETE FROM perigeu_routes WHERE id = @Id";
         var affectedRows = this._connection.Execute(query, new { Id = id });
         return affectedRows > 0;

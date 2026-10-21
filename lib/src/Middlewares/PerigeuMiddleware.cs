@@ -25,7 +25,6 @@ public sealed class PerigeuMiddleware: IMiddleware
     private static List<Route> _Routes = new();
     private readonly ILogger<PerigeuMiddleware> _logger;
     private readonly HttpClient _client;
-    private static List<perigeu_dotnet.Models.Script> _scripts;
 
     public PerigeuMiddleware(IPerigeuDbService perigeuDbService,IMemoryCache cache, ILogger<PerigeuMiddleware> logger,HttpClient client)
     {
@@ -39,6 +38,43 @@ public sealed class PerigeuMiddleware: IMiddleware
     public void LoadScripts()
     {
         PerigeuMiddleware._Routes = this._perigeuDbService.ListRoutes();
+    }
+
+    private List<perigeu_dotnet.Models.Script> ResolveScriptsInLoadOrder(IEnumerable<perigeu_dotnet.Models.Script>? rootScripts)
+    {
+        var loadOrder = new List<perigeu_dotnet.Models.Script>();
+        var resolved = new HashSet<long>();
+        var resolving = new HashSet<long>();
+
+        foreach (var script in rootScripts ?? Enumerable.Empty<perigeu_dotnet.Models.Script>())
+        {
+            ResolveScriptById(script.Id, loadOrder, resolved, resolving);
+        }
+
+        return loadOrder;
+    }
+
+    private void ResolveScriptById(
+        long scriptId,
+        List<perigeu_dotnet.Models.Script> loadOrder,
+        HashSet<long> resolved,
+        HashSet<long> resolving)
+    {
+        if (resolved.Contains(scriptId))
+            return;
+
+        if (!resolving.Add(scriptId))
+            throw new InvalidOperationException($"Circular script dependency detected for script id {scriptId}");
+
+        var script = _perigeuDbService.GetScript(scriptId);
+        foreach (var dependency in script.Dependencies)
+        {
+            ResolveScriptById(dependency.Id, loadOrder, resolved, resolving);
+        }
+
+        resolving.Remove(scriptId);
+        resolved.Add(scriptId);
+        loadOrder.Add(script);
     }
     
     
@@ -210,7 +246,8 @@ public sealed class PerigeuMiddleware: IMiddleware
                     if (utils.Contains("signalr"))
                         throw new NotImplementedException();
 
-                    foreach (var sc in route.Scripts ?? new List<Models.Script>())
+                    var orderedScripts = ResolveScriptsInLoadOrder(route.Scripts);
+                    foreach (var sc in orderedScripts)
                     {
                         script.DoString(sc.Body);
                     }

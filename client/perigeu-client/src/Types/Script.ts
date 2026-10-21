@@ -2,5 +2,6 @@ export type Script = {
     id: number,
     key: string,
     descricao: string,
-    body: string
+    body: string,
+    dependencies?: Script[]
 }

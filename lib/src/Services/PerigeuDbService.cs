@@ -38,31 +38,36 @@ public class PerigeuDbService : IPerigeuDbService
     #region Routes
     public List<Route> ListRoutes()
     {
-        var repo = new RouteRepository(GetConnection());
+        using var connection = GetConnection();
+        var repo = new RouteRepository(connection);
         return repo.List();
     }
 
     public Route GetRoute(long id)
     {
-        var repo = new RouteRepository(GetConnection());
+        using var connection = GetConnection();
+        var repo = new RouteRepository(connection);
         return repo.GetById(id);
     }
 
     public Route CreateRoute(Route route)
     {
-        var repo = new RouteRepository(GetConnection());
+        using var connection = GetConnection();
+        var repo = new RouteRepository(connection);
         return repo.Add(route);
     }
 
     public Route UpdateRoute(Route route)
     {
-        var repo = new RouteRepository(GetConnection());
+        using var connection = GetConnection();
+        var repo = new RouteRepository(connection);
         return repo.Update(route);
     }
 
     public bool DeleteRoute(long id)
     {
-        var repo = new RouteRepository(GetConnection());
+        using var connection = GetConnection();
+        var repo = new RouteRepository(connection);
         return repo.Delete(id);
     }
     #endregion
@@ -71,27 +76,37 @@ public class PerigeuDbService : IPerigeuDbService
 
     public List<Script> ListScripts()
     {
-        throw new NotImplementedException();
+        using var connection = GetConnection();
+        var repo = new ScriptRepository(connection);
+        return repo.List();
     }
 
     public Script GetScript(long id)
     {
-        throw new NotImplementedException();
+        using var connection = GetConnection();
+        var repo = new ScriptRepository(connection);
+        return repo.GetById(id);
     }
 
     public Script CreateScript(Script scriptDao)
     {
-        throw new NotImplementedException();
+        using var connection = GetConnection();
+        var repo = new ScriptRepository(connection);
+        return repo.Add(scriptDao);
     }
 
     public Script UpdateScript(Script scriptDao)
     {
-        throw new NotImplementedException();
+        using var connection = GetConnection();
+        var repo = new ScriptRepository(connection);
+        return repo.Update(scriptDao);
     }
 
     public bool DeleteScriptDao(long id)
     {
-        throw new NotImplementedException();
+        using var connection = GetConnection();
+        var repo = new ScriptRepository(connection);
+        return repo.Delete(id);
     }
     #endregion
 

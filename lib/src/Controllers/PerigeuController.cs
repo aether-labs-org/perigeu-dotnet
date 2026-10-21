@@ -65,13 +65,15 @@ public class PerigeuController: Controller
     [HttpGet("Script")]
     public async Task<IActionResult> ListScripts()
     {
-        throw new NotImplementedException();
+        var scripts = this._perigeuDbService.ListScripts();
+        return Ok(scripts);
     }
 
     [HttpGet("Script/{id:long}")]
     public async Task<IActionResult> GetScript(long id)
     {
-        throw new NotImplementedException();
+        var script = this._perigeuDbService.GetScript(id);
+        return Ok(script);
     }
     
     [HttpPost("Script")]
@@ -85,7 +87,9 @@ public class PerigeuController: Controller
     [HttpDelete("Script/{id:long}")]
     public async Task<IActionResult> DeleteScript(long id)
     {
-        throw new NotImplementedException();
+        if (this._perigeuDbService.DeleteScriptDao(id))
+            return Ok();
+        return NotFound();
     }
     
     [HttpGet("Util")]
