@@ -1,76 +1,61 @@
--- MARIADB DATABASE
+-- DUCKDB DATABASE
+
+CREATE SEQUENCE IF NOT EXISTS perigeu_config_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS perigeu_procedures_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS perigeu_routes_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS perigeu_scripts_id_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS perigeu_utils_id_seq START 1;
 
 CREATE TABLE perigeu_config (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('perigeu_config_id_seq'),
     chave VARCHAR(100) NOT NULL,
-    valor LONGTEXT NOT NULL
+    valor TEXT NOT NULL
 );
 
 CREATE TABLE perigeu_procedures (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    descricao LONGTEXT,
-    parameters LONGTEXT
+    id BIGINT PRIMARY KEY DEFAULT nextval('perigeu_procedures_id_seq'),
+    descricao TEXT,
+    parameters TEXT
 );
 
 CREATE TABLE perigeu_routes (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('perigeu_routes_id_seq'),
     method VARCHAR(10),
-    path LONGTEXT,
-    script LONGTEXT
+    path TEXT,
+    script TEXT
 );
 
 CREATE TABLE perigeu_scripts (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    descricao LONGTEXT,
+    id BIGINT PRIMARY KEY DEFAULT nextval('perigeu_scripts_id_seq'),
+    descricao TEXT,
     chave VARCHAR(200),
-    body LONGTEXT
+    body TEXT
 );
 
 CREATE TABLE perigeu_utils (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT PRIMARY KEY DEFAULT nextval('perigeu_utils_id_seq'),
     chave VARCHAR(100),
-    descricao LONGTEXT
+    descricao TEXT
 );
 
 CREATE TABLE perigeu_script_dep (
     perigeu_script_id BIGINT,
-    perigeu_script_dep_id BIGINT
+    perigeu_script_dep_id BIGINT,
+    FOREIGN KEY (perigeu_script_id) REFERENCES perigeu_scripts (id),
+    FOREIGN KEY (perigeu_script_dep_id) REFERENCES perigeu_scripts (id)
 );
 
 CREATE TABLE perigeu_route_script_dep (
     perigeu_route_id BIGINT,
     perigeu_script_id BIGINT,
-    ordem INT
+    ordem INT,
+    FOREIGN KEY (perigeu_route_id) REFERENCES perigeu_routes (id),
+    FOREIGN KEY (perigeu_script_id) REFERENCES perigeu_scripts (id)
 );
 
 CREATE TABLE perigeu_route_utils_dep (
     perigeu_route_id BIGINT,
-    perigeu_utils_id BIGINT
+    perigeu_utils_id BIGINT,
+    FOREIGN KEY (perigeu_route_id) REFERENCES perigeu_routes (id),
+    FOREIGN KEY (perigeu_utils_id) REFERENCES perigeu_utils (id)
 );
-
--- ALTERAÇÕES DE CONSTRAINT (Nomes únicos configurados)
-
-ALTER TABLE perigeu_route_script_dep
-    ADD CONSTRAINT fk_route_script
-        FOREIGN KEY (perigeu_route_id)
-            REFERENCES perigeu_routes (id);
-
-ALTER TABLE perigeu_route_utils_dep
-    ADD CONSTRAINT fk_route_utils
-        FOREIGN KEY (perigeu_route_id)
-            REFERENCES perigeu_routes (id);
-
-ALTER TABLE perigeu_route_utils_dep
-    ADD CONSTRAINT fk_utils
-        FOREIGN KEY (perigeu_utils_id)
-            REFERENCES perigeu_utils (id);
-
-ALTER TABLE perigeu_script_dep
-    ADD CONSTRAINT fk_script
-        FOREIGN KEY (perigeu_script_id)
-            REFERENCES perigeu_scripts (id);
-
-ALTER TABLE perigeu_script_dep
-    ADD CONSTRAINT fk_dep
-        FOREIGN KEY (perigeu_script_dep_id)
-            REFERENCES perigeu_scripts (id);

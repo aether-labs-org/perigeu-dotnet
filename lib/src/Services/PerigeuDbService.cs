@@ -1,6 +1,6 @@
 using System.Data;
-using MySqlConnector; // Driver específico para MariaDB/MySQL
 using Dapper;
+using DuckDB.NET.Data;
 using Microsoft.Extensions.Configuration;
 using MoonSharp.Interpreter;
 using perigeu_dotnet.Interfaces;
@@ -22,13 +22,14 @@ public class PerigeuDbService : IPerigeuDbService
                             ?? throw new ArgumentNullException(nameof(configuration));
     }
 
-    private IDbConnection GetConnection() => new MySqlConnection(_connectionString);
+    private IDbConnection GetConnection() => new DuckDBConnection(_connectionString);
 
     #region Procedures
     public List<string> ListProcedures()
     {
         using var db = GetConnection();
-        string query = "SELECT Descricao FROM perigeu_procedures order by descricao";
+        db.Open();
+        const string query = "SELECT descricao FROM perigeu_procedures ORDER BY descricao";
         var result = db.Query<string>(query).ToList();
         return result;
     }
@@ -103,25 +104,30 @@ public class PerigeuDbService : IPerigeuDbService
     public Table Execute(string procedureName, Table parameters)
     {
         using var db = GetConnection();
-        if(!this.ListProcedures().Contains(procedureName))
-            throw new Exception($"Procedure {procedureName} does not exist");
+        db.Open();
 
         var dbParams = new DynamicParameters();
         if (parameters != null)
         {
             foreach (var pair in parameters.Pairs)
             {
-                // O MariaDB mapeia os parâmetros ignorando o '@' no mapeamento do Dapper, 
-                // mas você pode passar a chave pura do Lua (ex: se no Lua for 'id', no banco será '@id')
                 dbParams.Add(pair.Key.String, pair.Value.ToObject());
             }
         }
 
-        // Executa a Procedure no MariaDB
+        var procedureSql = db.QuerySingleOrDefault<string>(
+            "SELECT parameters FROM perigeu_procedures WHERE descricao = @ProcedureName",
+            new { ProcedureName = procedureName }
+        );
+
+        var commandText = string.IsNullOrWhiteSpace(procedureSql)
+            ? procedureName
+            : procedureSql;
+
         var resultRows = db.Query<dynamic>(
-            procedureName,
+            commandText,
             dbParams,
-            commandType: CommandType.StoredProcedure
+            commandType: CommandType.Text
         ).ToList();
 
         // Monta a tabela de retorno do MoonSharp

@@ -7,7 +7,7 @@ namespace perigeu_dotnet.Repositories;
 
 public class RouteRepository
 {
-    private IDbConnection _connection;
+    private readonly IDbConnection _connection;
 
     public RouteRepository(IDbConnection connection)
     {
@@ -16,48 +16,61 @@ public class RouteRepository
     
     public List<Route> List()
     {
-        string query = "SELECT id, method,path,script FROM perigeu_routes order by path,method";
+        const string query = "SELECT id, method, path, script FROM perigeu_routes ORDER BY path, method";
         var result = this._connection.Query<Route>(query).ToList();
         return result;
     }
     
     public Route GetById(long id)
     {
-        string query = "SELECT id, method,path,script FROM perigeu_routes order by path";
-        var route = this._connection.Query<Route>(query).ToList().FirstOrDefault();
+        const string query = "SELECT id, method, path, script FROM perigeu_routes WHERE id = @Id";
+        var route = this._connection.QueryFirstOrDefault<Route>(query, new { Id = id });
         if (route == null)
             throw new Exception($"Route with id {id} not found");
-        route.Scripts = this._connection.Query<Script>($"select id,descricao,chave,body from perigeu_scripts where id in (select perigeu_script_id from perigeu_route_script_dep where perigeu_route_id = {route?.Id})").ToList();
+        route.Scripts = this._connection.Query<Script>(
+            """
+            SELECT s.id, s.descricao, s.chave, s.body
+            FROM perigeu_scripts s
+            INNER JOIN perigeu_route_script_dep rsd ON rsd.perigeu_script_id = s.id
+            WHERE rsd.perigeu_route_id = @RouteId
+            ORDER BY rsd.ordem, s.id
+            """,
+            new { RouteId = route.Id }
+        ).ToList();
         return route;
     }
     
     public Route Add(Route route)
     {
-        string query =
-            "INSERT INTO perigeu_routes (path, script,method) VALUES (@Path, @Script,@Method);" +
-            "SELECT * FROM perigeu_routes WHERE Id = LAST_INSERT_ID();";
-        var result = this._connection.Query<Route>(query, new { Path = route.Path, Script = route.Script ,Method = route.Method}).ToList();
-        if (result.Count == 0)
-            throw new Exception($"Insert Failed!");
-        return result.FirstOrDefault()!;
+        const string query = """
+            INSERT INTO perigeu_routes (path, script, method)
+            VALUES (@Path, @Script, @Method)
+            RETURNING id, method, path, script;
+            """;
+        var result = this._connection.QueryFirstOrDefault<Route>(
+            query,
+            new { Path = route.Path, Script = route.Script, Method = route.Method }
+        );
+        if (result == null)
+            throw new Exception("Insert failed.");
+        return result;
     }
 
     public Route Update(Route route)
     {
-        string query = @"
-            UPDATE perigeu_routes 
+        const string query = """
+            UPDATE perigeu_routes
             SET path = @Path, script = @Script , method = @Method
             WHERE id = @Id;
-            SELECT * FROM perigeu_routes WHERE id = @Id;
-        ";
-        var updatedRoute = this._connection.QueryFirstOrDefault<Route>(query, route);
-        return updatedRoute!;
+            """;
+        this._connection.Execute(query, route);
+        return this.GetById(route.Id);
     }
 
     public bool Delete(long id)
     {
-        string query = @"delete from perigeu_routes WHERE id = @Id";
-        this._connection.Query(query, new {Id = id});
-        return true;    
+        const string query = "DELETE FROM perigeu_routes WHERE id = @Id";
+        var affectedRows = this._connection.Execute(query, new { Id = id });
+        return affectedRows > 0;
     }
 }
