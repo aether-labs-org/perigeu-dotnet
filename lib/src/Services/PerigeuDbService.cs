@@ -14,23 +14,36 @@ namespace perigeu_dotnet.Services;
 
 public class PerigeuDbService : IPerigeuDbService
 {
-    private readonly string _connectionString;
+    private readonly DuckDBConnection _connection;
 
     public PerigeuDbService(IConfiguration configuration)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-                            ?? throw new ArgumentNullException(nameof(configuration));
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+                            ?? throw new InvalidOperationException(
+                                "ConnectionStrings:DefaultConnection não foi configurada. " +
+                                "Use uma string do DuckDB, por exemplo: 'Data Source=perigeu.duckdb'.");
+
+        if (connectionString.Contains("server=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("port=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("uid=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("pwd=", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "A connection string atual ainda está no formato do MariaDB/MySQL. " +
+                "Troque por DuckDB, por exemplo: 'Data Source=perigeu.duckdb'.");
+        }
+
+        _connection = new DuckDBConnection(connectionString);
+        _connection.Open();
     }
 
-    private IDbConnection GetConnection() => new DuckDBConnection(_connectionString);
+    public IDbConnection CreateConnection() => _connection;
 
     #region Procedures
     public List<string> ListProcedures()
     {
-        using var db = GetConnection();
-        db.Open();
         const string query = "SELECT descricao FROM perigeu_procedures ORDER BY descricao";
-        var result = db.Query<string>(query).ToList();
+        var result = _connection.Query<string>(query).ToList();
         return result;
     }
     #endregion
@@ -38,36 +51,31 @@ public class PerigeuDbService : IPerigeuDbService
     #region Routes
     public List<Route> ListRoutes()
     {
-        using var connection = GetConnection();
-        var repo = new RouteRepository(connection);
+        var repo = new RouteRepository(_connection);
         return repo.List();
     }
 
     public Route GetRoute(long id)
     {
-        using var connection = GetConnection();
-        var repo = new RouteRepository(connection);
+        var repo = new RouteRepository(_connection);
         return repo.GetById(id);
     }
 
     public Route CreateRoute(Route route)
     {
-        using var connection = GetConnection();
-        var repo = new RouteRepository(connection);
+        var repo = new RouteRepository(_connection);
         return repo.Add(route);
     }
 
     public Route UpdateRoute(Route route)
     {
-        using var connection = GetConnection();
-        var repo = new RouteRepository(connection);
+        var repo = new RouteRepository(_connection);
         return repo.Update(route);
     }
 
     public bool DeleteRoute(long id)
     {
-        using var connection = GetConnection();
-        var repo = new RouteRepository(connection);
+        var repo = new RouteRepository(_connection);
         return repo.Delete(id);
     }
     #endregion
@@ -76,36 +84,37 @@ public class PerigeuDbService : IPerigeuDbService
 
     public List<Script> ListScripts()
     {
-        using var connection = GetConnection();
-        var repo = new ScriptRepository(connection);
+        var repo = new ScriptRepository(_connection);
         return repo.List();
     }
 
     public Script GetScript(long id)
     {
-        using var connection = GetConnection();
-        var repo = new ScriptRepository(connection);
+        var repo = new ScriptRepository(_connection);
         return repo.GetById(id);
+    }
+
+    public Script GetScriptByKey(string chave)
+    {
+        var repo = new ScriptRepository(_connection);
+        return repo.GetByKey(chave);
     }
 
     public Script CreateScript(Script scriptDao)
     {
-        using var connection = GetConnection();
-        var repo = new ScriptRepository(connection);
+        var repo = new ScriptRepository(_connection);
         return repo.Add(scriptDao);
     }
 
     public Script UpdateScript(Script scriptDao)
     {
-        using var connection = GetConnection();
-        var repo = new ScriptRepository(connection);
+        var repo = new ScriptRepository(_connection);
         return repo.Update(scriptDao);
     }
 
     public bool DeleteScriptDao(long id)
     {
-        using var connection = GetConnection();
-        var repo = new ScriptRepository(connection);
+        var repo = new ScriptRepository(_connection);
         return repo.Delete(id);
     }
     #endregion
@@ -118,9 +127,6 @@ public class PerigeuDbService : IPerigeuDbService
     #endregion
     public Table Execute(string procedureName, Table parameters)
     {
-        using var db = GetConnection();
-        db.Open();
-
         var dbParams = new DynamicParameters();
         if (parameters != null)
         {
@@ -130,8 +136,8 @@ public class PerigeuDbService : IPerigeuDbService
             }
         }
 
-        var procedureSql = db.QuerySingleOrDefault<string>(
-            "SELECT parameters FROM perigeu_procedures WHERE descricao = @ProcedureName",
+        var procedureSql = _connection.QuerySingleOrDefault<string>(
+            "SELECT parameters FROM perigeu_procedures WHERE descricao = $ProcedureName",
             new { ProcedureName = procedureName }
         );
 
@@ -139,7 +145,7 @@ public class PerigeuDbService : IPerigeuDbService
             ? procedureName
             : procedureSql;
 
-        var resultRows = db.Query<dynamic>(
+        var resultRows = _connection.Query<dynamic>(
             commandText,
             dbParams,
             commandType: CommandType.Text
@@ -167,5 +173,10 @@ public class PerigeuDbService : IPerigeuDbService
         }
 
         return luaResultTable;
+    }
+
+    public void Dispose()
+    {
+        _connection.Dispose();
     }
 }

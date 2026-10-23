@@ -41,6 +41,13 @@ public class PerigeuController: Controller
         return Ok(routes);
     }
 
+    [HttpGet("{id:long}")]
+    public async Task<IActionResult> GetRouteAsync([FromRoute] long id)
+    {
+        var route = this._perigeuDbService.GetRoute(id);
+        return Ok(route);
+    }
+
     [HttpPost]    
     public async Task<IActionResult> UpsertRouteAsync([FromBody] Route route)
     {

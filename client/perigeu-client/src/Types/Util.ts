@@ -1,5 +1,5 @@
 export type Util = {
     id: number,
-    key: string
+    chave: string
     descricao: string
 }

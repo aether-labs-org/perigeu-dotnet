@@ -6,6 +6,6 @@ export type Route = {
     method: string
     path: string 
     script: string 
-    scripts: Script[],
-    utils: Util[]
+    scripts?: Script[]
+    utils?: Util[]
 }

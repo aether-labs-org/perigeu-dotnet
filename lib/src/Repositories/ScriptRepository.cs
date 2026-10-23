@@ -15,7 +15,6 @@ public class ScriptRepository
 
     public List<Script> List()
     {
-        _connection.Open();
         const string query = """
             SELECT id, chave, descricao, body
             FROM perigeu_scripts
@@ -32,12 +31,10 @@ public class ScriptRepository
 
     public Script GetById(long id)
     {
-        _connection.Open();
-
         const string scriptQuery = """
             SELECT id, chave, descricao, body
             FROM perigeu_scripts
-            WHERE id = @Id
+            WHERE id = $Id
             """;
         var script = _connection.QueryFirstOrDefault<Script>(scriptQuery, new { Id = id });
 
@@ -48,13 +45,27 @@ public class ScriptRepository
         return script;
     }
 
+    public Script GetByKey(string chave)
+    {
+        const string scriptQuery = """
+            SELECT id, chave, descricao, body
+            FROM perigeu_scripts
+            WHERE chave = $Chave
+            """;
+        var script = _connection.QueryFirstOrDefault<Script>(scriptQuery, new { Chave = chave });
+
+        if (script == null)
+            throw new Exception($"Script with key {chave} not found");
+
+        script.Dependencies = LoadDirectDependencies(script.Id);
+        return script;
+    }
+
     public Script Add(Script script)
     {
-        _connection.Open();
-
         const string insertQuery = """
             INSERT INTO perigeu_scripts (chave, descricao, body)
-            VALUES (@Chave, @Descricao, @Body)
+            VALUES ($Chave, $Descricao, $Body)
             RETURNING id, chave, descricao, body;
             """;
         var created = _connection.QueryFirstOrDefault<Script>(insertQuery, script)
@@ -67,14 +78,12 @@ public class ScriptRepository
 
     public Script Update(Script script)
     {
-        _connection.Open();
-
         const string updateQuery = """
             UPDATE perigeu_scripts
-            SET chave = @Chave,
-                descricao = @Descricao,
-                body = @Body
-            WHERE id = @Id;
+            SET chave = $Chave,
+                descricao = $Descricao,
+                body = $Body
+            WHERE id = $Id;
             """;
         var affectedRows = _connection.Execute(updateQuery, script);
         if (affectedRows == 0)
@@ -86,11 +95,9 @@ public class ScriptRepository
 
     public bool Delete(long id)
     {
-        _connection.Open();
-
-        _connection.Execute("DELETE FROM perigeu_route_script_dep WHERE perigeu_script_id = @Id", new { Id = id });
-        _connection.Execute("DELETE FROM perigeu_script_dep WHERE perigeu_script_id = @Id OR perigeu_script_dep_id = @Id", new { Id = id });
-        var affectedRows = _connection.Execute("DELETE FROM perigeu_scripts WHERE id = @Id", new { Id = id });
+        _connection.Execute("DELETE FROM perigeu_route_script_dep WHERE perigeu_script_id = $Id", new { Id = id });
+        _connection.Execute("DELETE FROM perigeu_script_dep WHERE perigeu_script_id = $Id OR perigeu_script_dep_id = $Id", new { Id = id });
+        var affectedRows = _connection.Execute("DELETE FROM perigeu_scripts WHERE id = $Id", new { Id = id });
         return affectedRows > 0;
     }
 
@@ -100,7 +107,7 @@ public class ScriptRepository
             SELECT s.id, s.chave, s.descricao, s.body
             FROM perigeu_scripts s
             INNER JOIN perigeu_script_dep sd ON sd.perigeu_script_dep_id = s.id
-            WHERE sd.perigeu_script_id = @ScriptId
+            WHERE sd.perigeu_script_id = $ScriptId
             ORDER BY s.descricao, s.chave, s.id
             """;
         return _connection.Query<Script>(query, new { ScriptId = scriptId }).ToList();
@@ -116,7 +123,7 @@ public class ScriptRepository
             _connection.Execute(
                 """
                 INSERT INTO perigeu_script_dep (perigeu_script_id, perigeu_script_dep_id)
-                VALUES (@ScriptId, @DependencyId)
+                VALUES ($ScriptId, $DependencyId)
                 """,
                 new { ScriptId = scriptId, DependencyId = dependency.Id }
             );
@@ -125,7 +132,7 @@ public class ScriptRepository
 
     private void ReplaceDependencies(long scriptId, IEnumerable<Script>? dependencies)
     {
-        _connection.Execute("DELETE FROM perigeu_script_dep WHERE perigeu_script_id = @ScriptId", new { ScriptId = scriptId });
+        _connection.Execute("DELETE FROM perigeu_script_dep WHERE perigeu_script_id = $ScriptId", new { ScriptId = scriptId });
         SaveDependencies(scriptId, dependencies);
     }
 }
